@@ -7,6 +7,10 @@ home = os.path.abspath(".")
 app = Flask(__name__)
 PORT = 5200
 
+@app.route("/checkOnline",methods=["GET"]) # maybe remove this.
+def checkOnline():
+    return jsonify({"message":1})
+
 def checkFileSystemValid(notebookName,tileName):
     try:
         os.chdir(f"notebooks/{notebookName}/{tileName}")
@@ -14,13 +18,12 @@ def checkFileSystemValid(notebookName,tileName):
     except:
         return False
 
-@app.route("/checkOnline",methods=["GET"])
-def checkOnline():
-    return jsonify({"message":1})
 
 @app.route("/replicateNotebook",methods=["POST"])
 def replicateNotebook():
-    # print(replicateToFileSystem(request.json["notebook"], request.json["user"]))
+    '''
+    This function is used for handling the replication of a PyLot Notebook object to the user's filesystem.
+    '''
     username = request.json["user"]
     notebook = request.json["notebook"]
     print(replicateToFileSystem(notebook, username))
@@ -47,9 +50,6 @@ def runTile():
             return jsonify(resultant.to_dict())
         except:
             return jsonify({"message":"Error."})
-        # except:
-            # return "Error ocurred while executing code."
-
     else:
         return jsonify({"message":"Notebook/Tile not found. (Invalid name / stale data?)"})
 
