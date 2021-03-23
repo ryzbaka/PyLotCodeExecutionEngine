@@ -2,15 +2,13 @@ import os
 import pickle
 import hashlib
 from shutil import rmtree
-from picklehash import getOldHash
 
-def getNewHash():
-    fileObject = open("incomingNotebook.pickle", "rb")
+def getHash(pickleFile):
+    fileObject = open(pickleFile,"rb")
     pickleBytes = fileObject.read()
-    sha1 = hashlib.sha1(pickleBytes)
-    hashed = sha1.hexdigest()
-    return hashed
-
+    sha = hashlib.sha1(pickleBytes)
+    hashed = sha.hexdigest()
+    return hashed    
 def fsInit():
     print("Initializing filesystem...")
     os.mkdir("notebooks")
@@ -58,34 +56,31 @@ def replicate(notebook):
                 with open("code.py","w") as codeObject:
                     codeObject.write(tiles[idx]["information"]["code"])
                 os.chdir("..")
-    ##############
     os.chdir(home)
 
 
 def replicateToFileSystem(notebook,user="testpilot"):
-    '''
-    write code here to convert an object into a folder structure
-    1) if there is not data folder create one
-    2) if there if no notebooks folder create one
-    3) Create a folder within the notebook folder named the same as the notebook object received.
-    4) For each  of the tiles in the notebook object you'll have to create folder which contains a code.py file.
-    5) The function that that code execution engine will target is the main function.
-    '''
     username = user
-    if "lastNotebook.pickle" not in os.listdir(): #change to <oldnotebookname>.pickle
-        with open("lastNotebook.pickle","wb") as f:
+    notebookName = notebook['name']
+    lastPickle = f"last{notebookName}.pickle"
+    incomingPickle = f"incoming{notebookName}.pickle"
+    print(lastPickle)
+    print(incomingPickle) 
+    if lastPickle not in os.listdir(): #change to <oldnotebookname>.pickle
+        with open(lastPickle,"wb") as f:
             pickle.dump(notebook, f)
+        replicate(notebook)
         #notebook being passed into the file system for the first time, no comparison needed.
     else:
         #new notebook object received, compare pickle hashes
-        with open("incomingNotebook.pickle", "wb") as f:
+        with open(incomingPickle, "wb") as f:
             pickle.dump(notebook, f)
-        oldHash = getOldHash() 
-        newHash = getNewHash()
+        oldHash = getHash(lastPickle) 
+        newHash = getHash(incomingPickle)
         if oldHash == newHash:
             print("same")
         else:
-            with open("lastNotebook.pickle","wb") as f:
+            with open(lastPickle,"wb") as f:
                 pickle.dump(notebook,f)
             replicate(notebook)
 
