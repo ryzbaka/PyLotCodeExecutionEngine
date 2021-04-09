@@ -7,6 +7,7 @@ home = os.path.abspath(".")
 app = Flask(__name__)
 PORT = 5200
 
+
 @app.route("/checkOnline",methods=["GET"]) # maybe remove this.
 def checkOnline():
     return jsonify({"message":1})
@@ -29,7 +30,7 @@ def replicateNotebook():
     print(replicateToFileSystem(notebook, username))
     return jsonify({"message":"Python code execution engine received notebook object"})
 
-@app.route("/runTile",methods=["POST"])
+@app.route("/runTile",methods=["POST"])#this function needs redoing since it doesn't factor in input and output tiles. You'll have to think about this
 def runTile():
     '''
     This function currently returns the output pandas dataframe as json
