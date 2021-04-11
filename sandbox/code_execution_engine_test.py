@@ -39,6 +39,7 @@ def execute(notebookName,tileName):
                 os.chdir(fsValid)
                 result.to_csv("output/output.csv")
                 print("done!")
+        os.chdir(HOME_PATH) #return to home path (root directory for code execution engine)
                 
     else:
         print("Invalid notebook or tile name.")

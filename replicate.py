@@ -32,11 +32,22 @@ def replicate(notebook):
             os.mkdir(tileName)
             os.chdir(tileName)
             os.mkdir("output")
+            inputTile = None
+            if len(tiles[idx]["information"]["inputTileNames"])>0:
+                inputTile = tiles[idx]["information"]["inputTileNames"]
+            information = {
+                "name":tileName,
+                "inputTile":inputTile
+            }
+            print(information)
+            with open("info.pickle","wb") as f: #!!!!!!!
+                pickle.dump(information,f)
+
             with open("code.py","w") as codeObject:
                 codeObject.write(tiles[idx]["information"]["code"])
             os.chdir("..")
     else:
-        print("~MODIFYING EXISTING NOTEBOOK")
+        print("~MODIFYING EXISTING NOTEBOOK~")
         os.chdir(notebookName)
         #delete tiles that arent in the notebook anymore
         existingTileNames = os.listdir()
@@ -49,10 +60,28 @@ def replicate(notebook):
                 os.mkdir(name)
                 os.chdir(name)
                 os.mkdir("output")
+                inputTile = None
+                if len(tiles[idx]["information"]["inputTileNames"]) > 0:
+                    inputTile = tiles[idx]["information"]["inputTileNames"]
+                information = {
+                    "name":name,
+                    "inputTile":inputTile
+                }
+                with open("info.pickle","wb") as f:
+                    pickle.dump(information,f)
                 with open("code.py","w") as codeObject:
                     codeObject.write(tiles[idx]["information"]["code"])
             else:
                 os.chdir(name)
+                inputTile = None
+                if len(tiles[idx]["information"]["inputTileNames"]) > 0:
+                    inputTile = tiles[idx]["information"]["inputTileNames"]
+                information = {
+                    "name":name,
+                    "inputTile":inputTile
+                }
+                with open("info.pickle","wb") as f:
+                    pickle.dump(information,f)
                 with open("code.py","w") as codeObject:
                     codeObject.write(tiles[idx]["information"]["code"])
                 os.chdir("..")
