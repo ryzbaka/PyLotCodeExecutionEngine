@@ -20,7 +20,8 @@ def replicate(notebook):
     tiles = notebook["tiles"]
     tileNames = notebook["tileNames"]
     home = os.path.abspath(os.curdir)
-    if ("notebooks" not in os.listdir()) or ("data" not in os.listdir()):
+    if ("notebooks" not in os.listdir()) or ("datasets" not in os.listdir()):
+        print(os.listdir())
         fsInit()
     os.chdir("notebooks")
     if notebookName not in os.listdir():

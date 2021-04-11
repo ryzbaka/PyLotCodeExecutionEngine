@@ -1,9 +1,12 @@
 import os
+import pickle
+import pandas as pd
 from sys import argv
 from flask import Flask,request,jsonify
 from importlib import import_module
 from replicate import replicateToFileSystem
-home = os.path.abspath(".")
+
+HOME_PATH = os.path.abspath(".")
 app = Flask(__name__)
 PORT = 5200
 
@@ -12,10 +15,19 @@ PORT = 5200
 def checkOnline():
     return jsonify({"message":1})
 
+# def checkFileSystemValid(notebookName,tileName):
+#     try:
+#         os.chdir(f"notebooks/{notebookName}/{tileName}")
+#         return True
+#     except:
+#         return False
 def checkFileSystemValid(notebookName,tileName):
+    os.chdir(HOME_PATH)
     try:
-        os.chdir(f"notebooks/{notebookName}/{tileName}")
-        return True
+        tile_path = f"notebooks/{notebookName}/{tileName}"
+        os.chdir(tile_path)
+        os.chdir(HOME_PATH)
+        return tile_path
     except:
         return False
 
@@ -41,16 +53,35 @@ def runTile():
     except:
         return jsonify({"message":"notebookName or tileName not specified"})
     fileSystemValid = checkFileSystemValid(notebookName, tileName)
-    os.chdir(home)
+    os.chdir(HOME_PATH)
     if fileSystemValid:
-        full_module_name = f"notebooks.{notebookName}.{tileName}.code"
-        module = import_module(full_module_name)
-        # try: 
-        resultant = module.main() #resultant will store output of main function
-        try:
-            return jsonify(resultant.to_dict())
-        except:
-            return jsonify({"message":"Error."})
+        os.chdir(HOME_PATH)
+        os.chdir(fileSystemValid)
+        information = None
+        with open("info.pickle","rb") as f:
+            information = pickle.load(f)
+        os.chdir(HOME_PATH)
+        if information["inputTile"]==None:
+            #input type = "dataset"
+            try:
+                code = import_module(f"notebooks.{notebookName}.{tileName}.code")
+                result = code.main()
+            except Exception as e:
+                errorString = str(e)    
+                return jsonify({"message":errorString})
+            # print(f"result: {result}")
+            if type(result)!=type(pd.DataFrame()):
+                return jsonify({
+                    "message":f"PyLot : [Error in main] Invalid function output type, expected Pandas dataframe got {type(result)}."
+                })
+            else:
+                os.chdir(fileSystemValid)
+                result.to_csv("output/output.csv")
+        else:
+            #input type : Tile
+            pass
+        os.chdir(HOME_PATH)        
+        return jsonify(result.to_dict())     
     else:
         return jsonify({"message":"Notebook/Tile not found. (Invalid name / stale data?)"})
 
