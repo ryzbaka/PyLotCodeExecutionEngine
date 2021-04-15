@@ -20,7 +20,7 @@ def replicate(notebook):
     tiles = notebook["tiles"]
     tileNames = notebook["tileNames"]
     home = os.path.abspath(os.curdir)
-    if ("notebooks" not in os.listdir()) or ("datasets" not in os.listdir()):
+    if ("notebooks" not in os.listdir()) and ("datasets" not in os.listdir()):
         print(os.listdir())
         fsInit()
     os.chdir("notebooks")
@@ -70,6 +70,7 @@ def replicate(notebook):
                 }
                 with open("info.pickle","wb") as f:
                     pickle.dump(information,f)
+                print(tiles[idx]["information"]["code"])
                 with open("code.py","w") as codeObject:
                     codeObject.write(tiles[idx]["information"]["code"])
             else:
