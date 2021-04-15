@@ -91,28 +91,28 @@ def replicate(notebook):
 
 
 def replicateToFileSystem(notebook,user="testpilot"):
-    username = user
-    notebookName = notebook['name']
-    lastPickle = f"last{notebookName}.pickle"
-    incomingPickle = f"incoming{notebookName}.pickle"
-    print(lastPickle)
-    print(incomingPickle) 
-    if lastPickle not in os.listdir(): #change to <oldnotebookname>.pickle
-        with open(lastPickle,"wb") as f:
-            pickle.dump(notebook, f)
-        replicate(notebook)
-        #notebook being passed into the file system for the first time, no comparison needed.
-    else:
-        #new notebook object received, compare pickle hashes
-        with open(incomingPickle, "wb") as f:
-            pickle.dump(notebook, f)
-        oldHash = getHash(lastPickle) 
-        newHash = getHash(incomingPickle)
-        if oldHash == newHash:
-            print("same")
-        else:
-            with open(lastPickle,"wb") as f:
-                pickle.dump(notebook,f)
-            replicate(notebook)
+    # username = user
+    # notebookName = notebook['name']
+    # lastPickle = f"last{notebookName}.pickle"
+    # incomingPickle = f"incoming{notebookName}.pickle"
+    # print(lastPickle)
+    # print(incomingPickle) 
+    # if lastPickle not in os.listdir(): #change to <oldnotebookname>.pickle
+    #     with open(lastPickle,"wb") as f:
+    #         pickle.dump(notebook, f)
+    #     replicate(notebook)
+    #     #notebook being passed into the file system for the first time, no comparison needed.
+    # else:
+    #     #new notebook object received, compare pickle hashes
+    #     with open(incomingPickle, "wb") as f:
+    #         pickle.dump(notebook, f)
+    #     oldHash = getHash(lastPickle) 
+    #     newHash = getHash(incomingPickle)
+    #     if oldHash == newHash:
+    #         print("same")
+    #     else:
+    #         with open(lastPickle,"wb") as f:
+    #             pickle.dump(notebook,f)
+    replicate(notebook)
 
     return f"***************\n***************" 
