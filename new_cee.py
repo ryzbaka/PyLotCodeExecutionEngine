@@ -1,14 +1,14 @@
 import sys
 import os
-import pickle
+import sqlite3
 import pandas as pd
 from flask import Flask,request,jsonify
 from inspect import getfullargspec
-import sqlite3
-import pandas as pd
+
 HOME_PATH = os.path.abspath(".")
 PORT = 5200
 MAX_ROWS = 20 #maximum number of rows that get sent to front-end for display.
+
 app = Flask(__name__)
 
 
@@ -73,11 +73,6 @@ def fetchCode(notebookName,tileName):
 def checkOnline():
     return jsonify({"message":1})
 
-def checkFileSystemValid(notebookName,tileName):
-    '''
-    This function checks if the notebook/tile name is valid and present in the DB for execution.
-    '''
-    pass
 @app.route("/replicateNotebook",methods=["POST"])
 def replicateNotebook():
     '''
@@ -103,31 +98,74 @@ def runTile():
             main = env["main"]
             # print(getfullargspec(main).args)
             main_args = getfullargspec(main).args
-            if(len(main_args)==0):
-                result = main()
-                if type(result)!=type(pd.DataFrame()):
-                    return jsonify({
-                        "message":f"PyLot : [Error in main] Invalid function output type, expected Pandas dataframe got {type(result)}."
-                    })
-                else:
-                    try:
-                        '''
-                        uploading output to database
-                        '''
-                        conn = sqlite3.connect("pylot.db")
-                        result.to_sql(tileName+"_"+notebookName,conn,if_exists="replace",index=False)
-                    except Exception as e:
-                        return jsonify({"error":"[Error saving output to local database]: "+str(e)})
-
-                    return jsonify(result.head(MAX_ROWS).to_dict())
-            else:
-                '''
-                logic for tiles that accept 
-                '''
-                return jsonify({"message":"logic for tiles that take other tiles as input is being developed still."})
         except Exception as e:
-            return jsonify({"error":str(e)})
+            return jsonify({"error":f"[Error while accessing main() from tile: {tileName}'s' code] : "+str(e)})
+        
+        if(len(main_args)==0):
+            '''
+            logic for tiles that read from dataset or have no input.
+            '''
+            try:
+                result = main()
+            except Exception as e:
+                return jsonify({"error":f"[Error while executing main() from tile :{tileName}'s code'] : "+str(e)})
+            if type(result)!=type(pd.DataFrame()):
+                return jsonify({
+                    "message":f"PyLot : [Error in main] Invalid function output type, expected Pandas dataframe got {type(result)}."
+                })
+            else:
+                try:
+                    '''
+                    uploading output to database
+                    '''
+                    conn = sqlite3.connect("pylot.db")
+                    result.to_sql(tileName+"_"+notebookName,conn,if_exists="replace",index=False)
+                    conn.close()
+                except Exception as e:
+                    return jsonify({"error":"[Error saving output to local database]: "+str(e)})
+
+                return jsonify(result.head(MAX_ROWS).to_dict())
+        else:
+            '''
+            logic for tiles that accept other tiles as input.
+            Note: The formal arguments in these tiles should match the name of the tile they wish to use as input so as to avoid ambiguity.
+            '''
+            # print(main)
+            print(main_args)
+            #retrieve required data from database
+            main_dfs=[]
+            for arg in main_args:
+                data = fetchData(notebookName,arg)
+                if type(data) == type(pd.DataFrame()):
+                    main_dfs.append(data)
+                else:
+                    return jsonify({"error":f"couldn't fetch data ({arg}'s output) required to run tile code."})
+            try:
+                result = main(*main_dfs)
+            except Exception as e:
+                return jsonify({"error":f"[Error while executing {tileName}'s code'] : "+str(e)})
+            try:
+                '''
+                Uploading output to database.
+                '''          
+                conn = sqlite3.connect("pylot.db")
+                result.to_sql(tileName+"_"+notebookName,conn,if_exists="replace",index=False)
+            except Exception as e:
+                return jsonify({"error":"[Error while saving code output to local database]"})
+            return jsonify(result.head(MAX_ROWS).to_dict())
+            # return jsonify({"message":"logic for tiles that take other tiles as input is being developed still."})
     else:
         return jsonify({"error":"Code for tile not found or (Notebook/tile) does not exist."})
+
+def fetchData(notebookName,tileName):
+    tableName = f"{tileName}_{notebookName}"
+    try:
+        conn = sqlite3.connect("pylot.db")
+        data = pd.read_sql_query(f"select * from {tableName}",conn)
+        conn.close()
+        return data
+    except Exception as e:
+        print(str(e))
+        return False
 if __name__=='__main__': 
     app.run(port = PORT, debug=True)
