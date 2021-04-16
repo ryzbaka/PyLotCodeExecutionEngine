@@ -15,7 +15,6 @@ def fsInit():
     os.mkdir("data")
 
 def replicate(notebook):
-    # print(f"replicating notebook object to file system")
     notebookName = notebook["name"]
     tiles = notebook["tiles"]
     tileNames = notebook["tileNames"]
@@ -40,12 +39,12 @@ def replicate(notebook):
                 "name":tileName,
                 "inputTile":inputTile
             }
-            print(information)
+            # print(information)
             with open("info.pickle","wb") as f: #!!!!!!!
                 pickle.dump(information,f)
-
-            with open("code.py","w") as codeObject:
-                codeObject.write(tiles[idx]["information"]["code"])
+            # print(tiles[idx]["information"]["code"])
+            with open("code.py","w") as f:
+                f.write(tiles[idx]["information"]["code"])
             os.chdir("..")
     else:
         print("~MODIFYING EXISTING NOTEBOOK~")
@@ -70,7 +69,6 @@ def replicate(notebook):
                 }
                 with open("info.pickle","wb") as f:
                     pickle.dump(information,f)
-                print(tiles[idx]["information"]["code"])
                 with open("code.py","w") as codeObject:
                     codeObject.write(tiles[idx]["information"]["code"])
             else:
@@ -84,8 +82,25 @@ def replicate(notebook):
                 }
                 with open("info.pickle","wb") as f:
                     pickle.dump(information,f)
-                with open("code.py","w") as codeObject:
-                    codeObject.write(tiles[idx]["information"]["code"])
+                print("removing code.py")
+                os.remove("code.py")
+                print(os.listdir())
+                # with open("code.py","w") as f:
+                #     print("**************************!!!!!!!!!!!!!************")
+                #     print(tiles[idx]["information"]["code"])
+                #     f.write(tiles[idx]["information"]["code"])
+                #     f.flush()
+                f = open("code.py","w")
+                print("()()()")
+                print(tiles[idx]["information"]["code"])
+                f.write(tiles[idx]["information"]["code"])
+                f.flush()
+                f.close()
+                f = open("code.py","rb")
+                print("READING FROM CODE.PY AFTER WRITING")
+                print(f.read())
+                f.close()
+                print("()()()")
                 os.chdir("..")
     os.chdir(home)
 

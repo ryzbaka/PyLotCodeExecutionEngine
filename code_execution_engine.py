@@ -1,16 +1,105 @@
+"   MAYBE TRY READING WITH 'R' INSTEAD OF 'RB'" 
+import sys
 import os
 import pickle
 import pandas as pd
-from sys import argv
 from flask import Flask,request,jsonify
-from importlib import import_module
-from replicate import replicateToFileSystem
 from inspect import getfullargspec
 HOME_PATH = os.path.abspath(".")
 app = Flask(__name__)
 PORT = 5200
 
 
+
+def replicate(notebook):
+    notebookName = notebook["name"]
+    tiles = notebook["tiles"]
+    tileNames = notebook["tileNames"]
+    home = os.path.abspath(os.curdir)
+    if ("notebooks" not in os.listdir()) and ("datasets" not in os.listdir()):
+        print(os.listdir())
+        fsInit()
+    os.chdir("notebooks")
+    if notebookName not in os.listdir():
+        #fresh notebook creation
+        print("~FRESH NOTEBOOK CREATION~")
+        os.mkdir(notebookName)
+        os.chdir(notebookName)
+        for idx,tileName in enumerate(tileNames):
+            os.mkdir(tileName)
+            os.chdir(tileName)
+            os.mkdir("output")
+            inputTile = None
+            if len(tiles[idx]["information"]["inputTileNames"])>0:
+                inputTile = tiles[idx]["information"]["inputTileNames"]
+            information = {
+                "name":tileName,
+                "inputTile":inputTile
+            }
+            # print(information)
+            with open("info.pickle","wb") as f: #!!!!!!!
+                pickle.dump(information,f)
+            # print(tiles[idx]["information"]["code"])
+            with open("code.py","w") as f:
+                f.write(tiles[idx]["information"]["code"])
+            os.chdir("..")
+    else:
+        print("~MODIFYING EXISTING NOTEBOOK~")
+        os.chdir(notebookName)
+        #delete tiles that arent in the notebook anymore
+        existingTileNames = os.listdir()
+        for name in existingTileNames:
+            if name not in tileNames:
+                rmtree(name,ignore_errors=True)
+        #add tiles that arent in the fs
+        for idx,name in enumerate(tileNames):
+            if name not in os.listdir():
+                os.mkdir(name)
+                os.chdir(name)
+                os.mkdir("output")
+                inputTile = None
+                if len(tiles[idx]["information"]["inputTileNames"]) > 0:
+                    inputTile = tiles[idx]["information"]["inputTileNames"]
+                information = {
+                    "name":name,
+                    "inputTile":inputTile
+                }
+                with open("info.pickle","wb") as f:
+                    pickle.dump(information,f)
+                with open("code.py","w") as codeObject:
+                    codeObject.write(tiles[idx]["information"]["code"])
+            else:
+                os.chdir(name)
+                inputTile = None
+                if len(tiles[idx]["information"]["inputTileNames"]) > 0:
+                    inputTile = tiles[idx]["information"]["inputTileNames"]
+                information = {
+                    "name":name,
+                    "inputTile":inputTile
+                }
+                with open("info.pickle","wb") as f:
+                    pickle.dump(information,f)
+                # with open("code.py","w") as f:
+                #     print("**************************!!!!!!!!!!!!!************")
+                #     print(tiles[idx]["information"]["code"])
+                #     f.write(tiles[idx]["information"]["code"])
+                #     f.flush()
+                f = open("code.py","w")
+                print("()()()")
+                print(tiles[idx]["information"]["code"])
+                f.write(tiles[idx]["information"]["code"])
+                f.flush()
+                f.close()
+                f = open("code.py","r")
+                print("READING FROM CODE.PY AFTER WRITING")
+                print(f.read())
+                f.close()
+                print("()()()")
+                os.chdir("..")
+    os.chdir(home)
+
+def replicateToFileSystem(notebook,user="testpilot"):
+    replicate(notebook)
 @app.route("/checkOnline",methods=["GET"]) # maybe remove this.
 def checkOnline():
     return jsonify({"message":1})
@@ -65,8 +154,16 @@ def runTile():
         if information["inputTile"]==None:
             #input type = "dataset"
             try:
-                code = import_module(f"notebooks.{notebookName}.{tileName}.code")
-                result = code.main()
+                code_path = f"notebooks/{notebookName}/{tileName}/code.py"
+                code = ""
+                with open(code_path,"rb") as f:
+                    code = f.read()
+                env = {}
+                obj = compile(code,"","exec")
+                exec(obj,env)
+                main = env["main"]
+                result = main()
+                main = None
             except Exception as e:
                 errorString = str(e)    
                 return jsonify({"message":errorString})
@@ -77,7 +174,7 @@ def runTile():
             else:
                 os.chdir(fileSystemValid)
                 result.to_csv("output/output.csv")
-                return jsonify(result.head().to_dict())
+                return jsonify(result.head(20).to_dict())
         else:
             #input type : Tile
                 input_dataframes={}
@@ -106,13 +203,25 @@ def runTile():
                         except Exception as e:
                             return jsonify({"error":str(e)})
             #done reading dataframes to memory, now we select the dataframes that are actually used in the current tile's main function.
-            #step 1: import the tile main as module [USE *args_array to unpack args into function arguments]
+            #import the tile main as module [USE *args_array to unpack args into function arguments]
                 os.chdir(HOME_PATH)#return to root.
                 try:
-                    tile_code = import_module(f"notebooks.{notebookName}.{tileName}.code")
-                    tile_main_args = getfullargspec(tile_code.main).args
+                    #THE PROBLEM IS HERE
+                    #If this file reading shit works better write some exception handlign for this shit.
+                    code_path = f"notebooks/{notebookName}/{tileName}/code.py"
+                    code = ""
+                    with open(code_path,"rb") as f:
+                        code = f.read()
+                    print("READING CODE FROM FILE BEFORE EXEC")
+                    print(code)
+                    env = {}
+                    obj = compile(code,"","exec")
+                    exec(obj,env)
+                    main = env["main"]
+                    tile_main_args = getfullargspec(main).args
                 except Exception as e:
-                    return jsonify({"error":str(e)+"\n Did you save the notebook?"})    
+                    # return jsonify({"error":str(e)+"\n Did you save the notebook?"})
+                    return jsonify({"error":"error in file read code exec."})    
                 if len(tile_main_args)>0:
                     #function has arguments
                     tile_input_dataframes = []
@@ -124,10 +233,11 @@ def runTile():
                     # print(tile_input_dataframes) #remove this
                     #code execution
                     try:
-                        result = tile_code.main(*tile_input_dataframes)
+                        result = main(*tile_input_dataframes)
                         os.chdir(f"notebooks/{notebookName}/{tileName}/output")
                         result.to_csv("output.csv")
-                        return jsonify(result.head().to_dict())
+                        main = None
+                        return jsonify(result.head(20).to_dict())
                     except Exception as e:
                         return jsonify({"error":"[Error in tile code]: "+str(e)})
                 else:
