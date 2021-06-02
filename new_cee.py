@@ -1,16 +1,19 @@
+from datetime import datetime
 import sys
 import os
 import sqlite3
 import pandas as pd
 from flask import Flask,request,jsonify
 from inspect import getfullargspec
+from apscheduler.schedulers.background import BackgroundScheduler
 
 HOME_PATH = os.path.abspath(".")
 PORT = 5200
 MAX_ROWS = 20 #maximum number of rows that get sent to front-end for display.
 
 app = Flask(__name__)
-
+sched = BackgroundScheduler(daemon=True)
+sched.start()
 
 def replicateToDatabase(notebook):
     '''
@@ -33,6 +36,7 @@ def replicateToDatabase(notebook):
     #End of table creation
     for idx,tile in enumerate(tiles):
         info = tile["information"]
+        print(info)
         code = info["code"]
         name = info["name"]
         inputTileNames = info["inputTileNames"]
@@ -149,7 +153,7 @@ def runTile():
                 Uploading output to database.
                 '''          
                 conn = sqlite3.connect("pylot.db")
-                result.to_sql(tileName+"_"+notebookName,conn,if_exists="replace",index=False)
+                result.to_sql(tileName+"_"+notebookName,conn,if_exists="replace",index=True) #maybe change index to True
             except Exception as e:
                 return jsonify({"error":"[Error while saving code output to local database]"})
             return jsonify(result.head(MAX_ROWS).to_dict())
@@ -157,6 +161,112 @@ def runTile():
     else:
         return jsonify({"error":"Code for tile not found or (Notebook/tile) does not exist."})
 
+@app.route("/fetchOutput",methods=["POST"])
+def fetchOutput():
+    notebookName = request.json["notebookName"]
+    tileName = request.json["tileName"]
+    tableName = f"{tileName}_{notebookName}"
+    try:
+        conn = sqlite3.connect("pylot.db")
+        data = pd.read_sql_query(f"select * from {tableName}",conn)
+        conn.close()
+        return jsonify(data.head(MAX_ROWS).to_dict())
+    except Exception as e:
+        print(str(e))
+        return jsonify({"error":str(e)})
+
+def test_schedule_function(username):
+    now = datetime.now().strftime("%H:%M:%S")
+    print(f"{username} the time is {now}")
+
+# @app.route("/runDAG",methods=["POST"])
+def run_scheduled_dag(notebookName):
+    #convert all returns to logs
+    # notebookName = request.json["notebookName"]
+    try:
+        conn = sqlite3.connect("pylot.db")
+        data = pd.read_sql_query(f"select * from {notebookName}",conn)
+        data_dict = data.to_dict()
+        code_snippets = list(data_dict["code"].values())
+    # print(code_snippets)
+    except Exception as e:
+        print(str(e))
+    for index,code in enumerate(code_snippets):
+        # print(data_dict["tileName"][str(index)])
+        tileName = data_dict["tileName"][index]
+        print(f"Executing Notebook: {notebookName} ; tile: {tileName} ; {datetime.now().strftime('%H:%M:%S')}")
+        try:
+            env = {}
+            obj = compile(code,"","exec")
+            exec(obj,env)
+            main = env["main"]
+            main_args = getfullargspec(main).args
+        except Exception as e:
+            print({"error":f"[Error while accessing main()]"})
+        if len(main_args)==0:
+            #tile has no input
+            try:
+                result = main()
+            except Exception as e:
+                print({"error":f"[Error executing main()]"})
+            if type(result)!=type(pd.DataFrame()):
+                print({"error":f"[Error in main] Invalid function output type"})
+            try:
+                #saving to sqlite
+                # tileName = data_dict["tileName"][index]
+                conn = sqlite3.connect("pylot.db")
+                result.to_sql(tileName+"_"+notebookName,conn,if_exists="replace",index=False)
+                conn.close()
+            except Exception as e:
+                print({"error":f"[Error while saving output]"})
+        else:
+            #tile has input
+            main_dfs=[]
+            for arg in main_args:
+                data = fetchData(notebookName,arg)
+                if type(data) == type(pd.DataFrame()):
+                    main_dfs.append(data)
+                else:
+                    print({"error":f"couldn't fetch data ({arg}'s output) required to run tile code."})
+            try:
+                result = main(*main_dfs)
+            except Exception as e:
+                print({"error":f"[Error while executing {tileName}'s code'] : "+str(e)})
+            try:
+                '''
+                Uploading output to database.
+                '''          
+                conn = sqlite3.connect("pylot.db")
+                result.to_sql(tileName+"_"+notebookName,conn,if_exists="replace",index=True) #maybe change index to True
+            except Exception as e:
+                print({"error":"[Error while saving code output to local database]"})
+    print({"message":"done"})
+@app.route("/scheduleNotebook",methods=["POST"])
+def scheduleDAG():
+    '''
+    This function is currently being used to test function scheduling.
+
+    Write code here to run a dag.
+    '''
+    notebook = request.json["notebookName"]
+    minutes = request.json["minutes"]
+    sched.add_job(run_scheduled_dag,'interval',minutes=minutes,id=notebook,args=[notebook])
+    print(f"Scheduled notebook {notebook} to run every {minutes} minute(s).")
+    return "Done scheduling"
+
+@app.route("/getJobList",methods=["POST"])
+def getJobs():
+    sched.print_jobs()
+    return jsonify({"message":"done"})
+
+@app.route("/removeJob",methods=["POST"])
+def removeJob():
+    job_id = request.json["notebook"]
+    try:
+        sched.remove_job(job_id)
+        return jsonify({"message":"Stopped job successfully."})
+    except Exception as e:
+        return jsonify({"message":str(e)})
 def fetchData(notebookName,tileName):
     tableName = f"{tileName}_{notebookName}"
     try:
@@ -167,5 +277,6 @@ def fetchData(notebookName,tileName):
     except Exception as e:
         print(str(e))
         return False
+
 if __name__=='__main__': 
     app.run(port = PORT, debug=True)
