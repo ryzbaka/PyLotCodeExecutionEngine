@@ -250,9 +250,12 @@ def scheduleDAG():
     '''
     notebook = request.json["notebookName"]
     minutes = request.json["minutes"]
-    sched.add_job(run_scheduled_dag,'interval',minutes=minutes,id=notebook,args=[notebook])
-    print(f"Scheduled notebook {notebook} to run every {minutes} minute(s).")
-    return "Done scheduling"
+    try:
+        sched.add_job(run_scheduled_dag,'interval',minutes=minutes,id=notebook,args=[notebook])
+        print(f"Scheduled notebook {notebook} to run every {minutes} minute(s).")
+        return jsonify({"message":"Done scheduling"})
+    except Exception as e:
+        return jsonify({"message":str(e)})
 
 @app.route("/getJobList",methods=["POST"])
 def getJobs():
